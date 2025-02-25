@@ -16,7 +16,7 @@ router.get("/getEmployees", getAllEmployees);
 
 router.post("/addEmployees", upload.single('image'),addEmployee);
 
-router.put("/editEmployees/:id", editEmployee);
+router.put("/editEmployees/:id", upload.single('image') ,editEmployee);
 
 router.delete("/deleteEmployees/:id", deleteEmployee);
 

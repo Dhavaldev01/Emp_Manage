@@ -23,15 +23,20 @@ const Employee = sequelize.define('Employee', {
         allowNull: false, 
     },
     dob: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false, 
+        validate: {
+            notEmpty: { msg: "DOB is required." },
+            isDate: { msg: "Invalid date format for dob." } 
+        }
     },
     phone: {
         type: DataTypes.STRING,
         allowNull: false, 
         validate: {
             notEmpty: { msg: "Phone number is required." },
-            isNumeric: { msg: "Phone number must contain only numbers." }
+            isNumeric: { msg: "number must contain only number" },
+            len: { args: [10, 10], msg: "number must be exactly 10 digits" } 
         }
     },
     photo: {
@@ -74,9 +79,6 @@ const Employee = sequelize.define('Employee', {
     tableName: 'employees', 
 });
 
-
-// Department.hasMany(Employee, { foreignKey: 'departmentId', onDelete: 'CASCADE' });
-// Employee.belongsTo(Department, { foreignKey: 'departmentId' });
 Employee.belongsTo(Department, { foreignKey: 'departmentId', as: 'department' });
 
 

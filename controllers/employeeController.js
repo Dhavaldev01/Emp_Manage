@@ -1,6 +1,7 @@
 require("dotenv").config();
 const { literal } = require("sequelize");
 const { Op } = require("sequelize");
+const fs = require("fs");
 const { fn, col } = require("sequelize");
 
 const Employee = require("../models/employeeModel.js");
@@ -12,13 +13,20 @@ const { validateEmployee } = require("../Helpers/validate");
 const sequelize = require("../config/database.js");
 
 exports.addEmployee = catchAsync(async (req, res, next) => {
-
-  const validationError = validateEmployee(req.body);
+  const validatedData = { ...req.body };
+  const validationError = validateEmployee(validatedData);
 
   if (validationError) return next(new AppError(validationError, 400));
 
   const { departmentId, name, dob, phone, photo, email, salary, status } =
     req.body;
+
+    
+  const formattedDob = new Date(dob);
+  if (isNaN(formattedDob)) {
+    return next(new AppError("Invalid date format for DOB.", 400));
+  }
+
 
   const imagePath = req.file ? req.file.path : null;
 
@@ -29,7 +37,7 @@ exports.addEmployee = catchAsync(async (req, res, next) => {
   const employee = await Employee.create({
     departmentId,
     name,
-    dob,
+    dob: formattedDob,
     phone,
     photo: imagePath,
     email,
@@ -49,7 +57,6 @@ exports.addEmployee = catchAsync(async (req, res, next) => {
 });
 
 exports.getAllEmployees = catchAsync(async (req, res, next) => {
-
   const { page = 1, limit = 10 } = req.query;
   const skip = (page - 1) * limit;
 
@@ -86,9 +93,9 @@ exports.getAllEmployees = catchAsync(async (req, res, next) => {
 });
 
 exports.editEmployee = catchAsync(async (req, res, next) => {
-
   const { id } = req.params;
   const { departmentId, name, dob, phone, email, salary, status } = req.body;
+  console.log(req.body);
 
   const imagePath = req.file ? req.file.path : null;
 
@@ -99,13 +106,6 @@ exports.editEmployee = catchAsync(async (req, res, next) => {
   if (!employee)
     return next(new AppError("Empolyed Not found Please Try Again !", 404));
 
-  if (imagePath && employee.photo) {
-    if (fs.existsSync(employee.photo)) {
-      fs.unlinkSync(employee.photo);
-    }
-    employee.photo = imagePath;
-  }
-
   if (departmentId) employee.departmentId = departmentId;
   if (name) employee.name = name;
   if (dob) employee.dob = dob;
@@ -113,6 +113,13 @@ exports.editEmployee = catchAsync(async (req, res, next) => {
   if (email) employee.email = email;
   if (salary) employee.salary = salary;
   if (status) employee.status = status;
+
+  if (imagePath && employee.photo) {
+    if (fs.existsSync(employee.photo)) {
+      fs.unlinkSync(employee.photo);
+    }
+    employee.photo = imagePath;
+  }
 
   await employee.save();
 
@@ -139,7 +146,6 @@ exports.deleteEmployee = catchAsync(async (req, res, next) => {
 });
 
 exports.getEmployeeStatistics = catchAsync(async (req, res, next) => {
-
   const { salaryRanges } = req.query;
 
   if (!salaryRanges) {
@@ -147,43 +153,42 @@ exports.getEmployeeStatistics = catchAsync(async (req, res, next) => {
   }
 
   const ranges = salaryRanges.split(",");
-    const caseWhenQuery = ranges
-      .map((range) => {
-        const [min, max] = range.split("-");
-        return max
-          ? `WHEN salary BETWEEN ${min} AND ${max} THEN '${range}'`
-          : `WHEN salary > ${min} THEN '${range}'`;
-      })
-      .join(" ");
+  const caseWhenQuery = ranges
+    .map((range) => {
+      const [min, max] = range.split("-");
+      return max
+        ? `WHEN salary BETWEEN ${min} AND ${max} THEN '${range}'`
+        : `WHEN salary > ${min} THEN '${range}'`;
+    })
+    .join(" ");
 
-    const salaryRangeStats = await Employee.findAll({
-      attributes: [
-        [fn("COUNT", col("id")), "employeeCount"],
-        [literal(`(CASE ${caseWhenQuery} ELSE 'Unknown' END)`), "salaryRange"],
-      ],
-      group: [literal(`(CASE ${caseWhenQuery} ELSE 'Unknown' END)`)],
-      raw: true,
-    });
 
-    const departmentSalary = await Employee.findAll({
-      attributes: [[fn("MAX", col("salary")), "highestSalary"], "departmentId"],
-      group: ["departmentId"],
-      include: { model: Department, as: "department", attributes: ["name"] },
-      raw: true,
-    });
+  const salaryRangeStats = await Employee.findAll({
+    attributes: [
+      [fn("COUNT", col("id")), "employeeCount"],
+      [literal(`(CASE ${caseWhenQuery} ELSE 'Unknown' END)`), "salaryRange"],
+    ],
+    group: [literal(`(CASE ${caseWhenQuery} ELSE 'Unknown' END)`)],
+    raw: true,
+  });
 
-    res.status(200).json({
-      success: true,
-      message: "Statistics Fetched Successfully",
-      data: { salaryRangeStats, departmentSalary },
-    });
- 
+  const departmentSalary = await Employee.findAll({
+    attributes: [[fn("MAX", col("salary")), "highestSalary"], "departmentId"],
+    group: ["departmentId"],
+    include: { model: Department, as: "department", attributes: ["name"] },
+    raw: true,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Statistics Fetched Successfully",
+    data: { salaryRangeStats, departmentSalary },
+  });
 });
 
 exports.getYoungestemployPerDepart = catchAsync(async (req, res, next) => {
-
-    const youngestEmployees = await sequelize.query(
-      `
+  const youngestEmployees = await sequelize.query(
+    `
       SELECT
         e.name,
         TIMESTAMPDIFF(YEAR, e.dob, CURDATE()) AS age,
@@ -191,24 +196,24 @@ exports.getYoungestemployPerDepart = catchAsync(async (req, res, next) => {
       FROM employees e
       INNER JOIN departments d ON e.departmentId = d.id
       WHERE e.dob = (
-        SELECT MIN(dob)
+        SELECT Max(dob)
         FROM employees
         WHERE departmentId = e.departmentId
       )
       ORDER BY e.departmentId;
       `,
-      { type: sequelize.QueryTypes.SELECT } 
+    { type: sequelize.QueryTypes.SELECT }
+  );
+
+  if (!youngestEmployees) {
+    return next(
+      new AppError("Get Youngest Enployed ouccer Error ! Please Try Again ")
     );
+  }
 
-
-    if(youngestEmployees){
-      return next(new AppError("Get Youngest Enployed ouccer Error ! Please Try Again "))
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Youngest employ per depat get successfully',
-      data: youngestEmployees,
-    });
+  res.status(200).json({
+    success: true,
+    message: "Youngest employ per depat get successfully",
+    data: youngestEmployees,
+  });
 });
-

@@ -15,6 +15,7 @@ exports.getAllDepartments = catchAsync(async (req, res, next) => {
   if (!departments) {
     return next(new AppError("Department Are Not Get Please Try Again", 400));
   }
+  
   const totalDepartments = await Department.count();
 
   return res.status(200).json({
