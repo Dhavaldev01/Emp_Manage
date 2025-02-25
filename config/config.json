@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "root",
+    "password": "Dhaval930",  
+    "database": "emp_mannagement",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "test": {
+    "username": "root",
+    "password": "Dhaval930",  
+    "database": "emp_mannagement_test",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": "Dhaval930",  
+    "database": "emp_mannagement_prod",
+    "host": "127.0.0.1",
+    "dialect": "mysql"
+  }
+}
